@@ -11,6 +11,8 @@ class BaseTest(unittest.TestCase):
     def test_arithmetic(self):
         self.assertEqual(interpret_one_sentence('(+ 1 2)'), 3)
         self.assertEqual(interpret_one_sentence('(/ (* (+ 1 2) (- 10 5)) 5)'), 3)
+        self.assertEqual(interpret_one_sentence('(- 1)'), -1)
+        self.assertEqual(interpret_one_sentence('(* 1 2 3)'), 6)
 
     def test_bind(self):
         expr = '(let (x 2) (x))'

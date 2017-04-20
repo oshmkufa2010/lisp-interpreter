@@ -115,16 +115,27 @@ def interpret(expr, env):
         return Closure(expr, env)
 
     elif op.type in (Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE):
-        v1 = interpret(expr[1], env)
-        v2 = interpret(expr[2], env)
-        if op.type == Type.PLUS:
-            return v1 + v2
-        elif op.type == Type.MINUS:
-            return v1 - v2
-        elif op.type == Type.TIMES:
-            return v1 * v2
-        elif op.type == Type.DIVIDE:
-            return v1 / v2
+
+        values = [interpret(exp, env) for exp in expr[1:]]
+
+        if len(values) >= 2:
+            if op.type == Type.PLUS:
+                return reduce(lambda x, y: x+y, values)
+            elif op.type == Type.TIMES:
+                return reduce(lambda x, y: x*y, values, 1)
+            elif len(values) == 2:
+                if op.type == Type.MINUS:
+                    return values[0] - values[1]
+                else:
+                    return values[0] / values[1]
+            else:
+                raise SyntaxError
+
+        elif len(values) == 1:
+            if op.type == Type.MINUS:
+                return values[0] * (-1)
+            else:
+                raise SyntaxError
 
     else:
         raise SyntaxError
