@@ -1,0 +1,3 @@
+
+class UnBoundError(Exception):
+    pass
