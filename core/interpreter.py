@@ -22,13 +22,22 @@ class Env(object):
         return None
 
     @contextmanager
-    def ext_env(self, var=None, val=None):
-        if var and val:
-            self.__scopes.append({var: val})
+    def ext_env(self, scope=None):
+        if scope:
+            self.__scopes.append(scope)
             yield self
             self.__scopes.pop()
         else:
             yield self
+
+
+class Scope(dict):
+    @classmethod
+    def make_scope(cls, args, arg_values):
+        kwargs = {}
+        for arg, value in zip(args, arg_values):
+            kwargs.update({arg: value})
+        return cls(kwargs)
 
 
 class Closure(object):
@@ -42,11 +51,21 @@ class Closure(object):
 
     @property
     def expr(self):
-        return self.__expr
+        return self.__expr[2]
 
     @property
     def args(self):
         return self.__expr[1]
+
+
+def interpret_arg_tuple(arg_tuple):
+    if not arg_tuple:
+        return None
+
+    if isinstance(arg_tuple, Token):
+        arg_tuple = [arg_tuple]
+
+    return [arg.value for arg in arg_tuple]
 
 
 def interpret(expr, env):
@@ -68,14 +87,17 @@ def interpret(expr, env):
 
     # call
     if isinstance(op, list) or (isinstance(op, Token) and op.type == Type.VAR):
-        fn = interpret(expr[0], env)
-        arg = interpret(expr[1], env)
-        if isinstance(fn, Closure):
-            env_save = fn.env
-            expr_save = fn.expr
-            arg_save = fn.args.value
-            with env_save.ext_env(arg_save, arg) as new_env:
-                result = interpret(expr_save[2], new_env)
+        closure = interpret(expr[0], env)
+        arg_values = [interpret(arg, env) for arg in expr[1:]]
+        if isinstance(closure, Closure):
+            env_save = closure.env
+            expr_save = closure.expr
+
+            args = interpret_arg_tuple(closure.args)
+            scope = Scope.make_scope(args, arg_values)
+
+            with env_save.ext_env(scope) as new_env:
+                result = interpret(expr_save, new_env)
             return result
 
     # expamle: (let (x v) (+ x 1))
@@ -83,7 +105,8 @@ def interpret(expr, env):
         bind_pair = expr[1]
         val = interpret(bind_pair[1], env)
         arg = bind_pair[0].value
-        with env.ext_env(arg, val) as new_env:
+        scope = Scope.make_scope((arg,), (val,))
+        with env.ext_env(scope) as new_env:
             result = interpret(expr[2], new_env)
         return result
 

@@ -17,8 +17,10 @@ class BaseTest(unittest.TestCase):
         self.assertEqual(interpret_one_sentence(expr), 2)
 
     def test_call(self):
-        expr = '((lambda x (* x 2)) 3)'
-        self.assertEqual(interpret_one_sentence(expr), 6)
+        expr1 = '((lambda (x) (* x 2)) 3)'
+        expr2 = '((lambda (x y) (* x y)) 2 5) '
+        self.assertEqual(interpret_one_sentence(expr1), 6)
+        self.assertEqual(interpret_one_sentence(expr2), 10)
 
     def test_lambda_bind(self):
         expr = '''
