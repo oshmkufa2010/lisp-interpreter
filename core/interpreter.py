@@ -6,9 +6,6 @@ import copy
 from errors import UnBoundError
 from parser import parse, Token, Type
 
-KEY_WORDS = ['lambda', 'let']
-
-
 
 class Env(object):
     def __init__(self, scopes=None):
@@ -94,7 +91,7 @@ def interpret(expr, env):
     elif op.type == Type.LAMBDA:
         return Closure(expr, env)
 
-    elif op.type in [Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE]:
+    elif op.type in (Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE):
         v1 = interpret(expr[1], env)
         v2 = interpret(expr[2], env)
         if op.type == Type.PLUS:

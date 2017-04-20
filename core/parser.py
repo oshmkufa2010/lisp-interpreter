@@ -24,7 +24,7 @@ Token = collections.namedtuple('Token', ['type', 'value'])
 
 class Type(object):
 
-    __slots__ = []
+    __slots__ = ()
 
     NUM = 'NUM'
     PLUS = 'PLUS'
@@ -37,6 +37,12 @@ class Type(object):
     RPAREN = 'RPAREN'
     VAR = 'VAR'
     WS = 'WS'
+
+
+KEY_WORDS = {
+    'lambda': Type.LAMBDA,
+    'let': Type.LET
+}
 
 
 class TokenList(object):
@@ -79,14 +85,10 @@ def generate_tokens(text):
         tok = Token(m.lastgroup, m.group())
         if tok.type != Type.WS:
             if tok.type == Type.VAR:
-                if tok.value == 'lambda':
-                    yield Token(Type.LAMBDA, tok.value)
-                elif tok.value == 'let':
-                    yield Token(Type.LET, tok.value)
-                else:
-                    yield tok
+                yield Token(KEY_WORDS.get(tok.value) or tok.type, tok.value)
             else:
                 yield tok
+
 
 def atom(token):
     if token.type == Type.NUM:
@@ -94,7 +96,7 @@ def atom(token):
             return Token(token.type, int(token.value))
         except ValueError:
             return Token(token.type, float(token.value))
-    elif token.type in [Type.VAR, Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE, Type.LAMBDA, Type.LET]:
+    elif token.type in (Type.VAR, Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE, Type.LAMBDA, Type.LET):
         return token
     else:
         raise SyntaxError
