@@ -52,11 +52,11 @@ class BaseTest(unittest.TestCase):
     def test_recursive(self):
         expr = '''
         (let
-            (f (lambda (n)
-                    (if (= n 1) 1 (* n (f (- n 1))))
+            (f (lambda (self n)
+                    (if (= n 1) 1 (* n (self self (- n 1))))
                 )
             )
-            (f 5)
+            (f f 5)
         )
         '''
         self.assertEqual(interpret_one_sentence(expr), 120)

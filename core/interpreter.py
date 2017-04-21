@@ -30,6 +30,9 @@ class Env(object):
         else:
             yield self
 
+    def __repr__(self):
+        return str(self.__scopes)
+
 
 class Scope(dict):
     @classmethod
@@ -56,6 +59,9 @@ class Closure(object):
     @property
     def args(self):
         return self.__expr[1]
+
+    def __repr__(self):
+        return '<expr:{0}, env:{1}>'.format(self.expr, str(self.__env))
 
 
 def interpret_arg_tuple(arg_tuple):
