@@ -84,7 +84,6 @@ def interpret(expr, env):
             return bound
 
     op = expr[0]
-
     # call
     if isinstance(op, list) or (isinstance(op, Token) and op.type == Type.VAR):
         closure = interpret(expr[0], env)
@@ -113,6 +112,39 @@ def interpret(expr, env):
     # example: (lambda (x) (+ x 1))
     elif op.type == Type.LAMBDA:
         return Closure(expr, env)
+
+    elif op.type == Type.IF:
+        try:
+            cond_expr, then_expr, else_expr = expr[1:]
+        except ValueError:
+            raise SyntaxError
+        else:
+            result = interpret(cond_expr, env)
+            if result:
+                return interpret(then_expr, env)
+            else:
+                return interpret(else_expr, env)
+
+    elif op.type in (Type.EQ, Type.NEQ, Type.LT, Type.LTE, Type.MT, Type.MTE):
+        try:
+            left_value, right_value = (interpret(exp, env) for exp in expr[1:])
+        except ValueError:
+            raise SyntaxError
+        else:
+            if op.type == Type.EQ:
+                return left_value == right_value
+            elif op.type == Type.NEQ:
+                return left_value != right_value
+            elif op.type == Type.LT:
+                return left_value < right_value
+            elif op.type == Type.LTE:
+                return left_value <= right_value
+            elif op.type == Type.MT:
+                return left_value > right_value
+            elif op.type == Type.MTE:
+                return left_value >= right_value
+            else:
+                raise SyntaxError
 
     elif op.type in (Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE):
 

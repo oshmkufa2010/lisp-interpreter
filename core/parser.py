@@ -16,8 +16,30 @@ RPAREN = r'(?P<RPAREN>\))'
 WS = r'(?P<WS>\s+)'
 VAR = r'(?P<VAR>[a-zA-Z]+[a-zA-Z0-9]*)'
 
-master_pat = re.compile('|'.join([NUM, PLUS, MINUS, TIMES,
-                                  DIVIDE, LPAREN, RPAREN, WS, VAR]))
+EQ = r'(?P<EQ>=)'
+NEQ = r'(?P<NEQ>!=)'
+LT = r'(?P<LT>\<)'
+MT = r'(?P<MT>\>)'
+LTE = r'(?P<LTE>\<=)'
+MTE = r'(?P<MTE>\>=)'
+
+
+master_pat = re.compile('|'.join([NUM,
+                                  PLUS,
+                                  MINUS,
+                                  TIMES,
+                                  DIVIDE,
+                                  LPAREN,
+                                  RPAREN,
+                                  WS,
+                                  VAR,
+                                  EQ,
+                                  NEQ,
+                                  LTE,
+                                  LT,
+                                  MTE,
+                                  MT]))
+
 # Tokenizer
 Token = collections.namedtuple('Token', ['type', 'value'])
 
@@ -37,11 +59,21 @@ class Type(object):
     RPAREN = 'RPAREN'
     VAR = 'VAR'
     WS = 'WS'
+    TRUE = 'TRUE'
+    FALSE = 'FALSE'
+    EQ = 'EQ'
+    NEQ = 'NEQ'
+    LT = 'LT'
+    MT = 'MT'
+    LTE = 'LTE'
+    MTE = 'MTE'
+    IF = 'IF'
 
 
 KEY_WORDS = {
     'lambda': Type.LAMBDA,
-    'let': Type.LET
+    'let': Type.LET,
+    'if': Type.IF
 }
 
 
@@ -96,10 +128,20 @@ def atom(token):
             return Token(token.type, int(token.value))
         except ValueError:
             return Token(token.type, float(token.value))
-    elif token.type in (Type.VAR, Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE, Type.LAMBDA, Type.LET):
+    elif token.type in (Type.VAR,
+                        Type.PLUS,
+                        Type.MINUS,
+                        Type.TIMES,
+                        Type.DIVIDE,
+                        Type.EQ,
+                        Type.NEQ,
+                        Type.LT,
+                        Type.LTE,
+                        Type.MT,
+                        Type.MTE) + tuple(KEY_WORDS.values()):
         return token
     else:
-        raise SyntaxError
+        raise SyntaxError(token)
 
 
 def read_from(tokens):

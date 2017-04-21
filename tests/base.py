@@ -41,7 +41,25 @@ class BaseTest(unittest.TestCase):
         '''
         self.assertEqual(interpret_one_sentence(expr), 6)
 
+    def test_condition(self):
+        self.assertEqual(interpret_one_sentence('(if (= 1 1) 1 0)'), 1)
+        self.assertEqual(interpret_one_sentence('(if (!= 1 1) 1 0)'), 0)
+        self.assertEqual(interpret_one_sentence('(if (> 2 1) 1 0)'), 1)
+        self.assertEqual(interpret_one_sentence('(if (>= 1 1) 1 0)'), 1)
+        self.assertEqual(interpret_one_sentence('(if (< 1 2) 1 0)'), 1)
+        self.assertEqual(interpret_one_sentence('(if (<= 1 1) 1 0)'), 1)
 
+    def test_recursive(self):
+        expr = '''
+        (let
+            (f (lambda (n)
+                    (if (= n 1) 1 (* n (f (- n 1))))
+                )
+            )
+            (f 5)
+        )
+        '''
+        self.assertEqual(interpret_one_sentence(expr), 120)
 
 if __name__ == '__main__':
     unittest.main()
