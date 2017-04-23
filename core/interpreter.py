@@ -36,9 +36,9 @@ class Env(object):
 
 class Scope(dict):
     @classmethod
-    def make_scope(cls, args, arg_values):
+    def make_scope(cls, arg_value_pairs):
         kwargs = {}
-        for arg, value in zip(args, arg_values):
+        for arg, value in arg_value_pairs:
             kwargs.update({arg: value})
         return cls(kwargs)
 
@@ -64,105 +64,89 @@ class Closure(object):
         return '<expr:{0}, env:{1}>'.format(self.expr, str(self.__env))
 
 
-def interpret_arg_tuple(arg_tuple):
-    if not arg_tuple:
-        return None
+class Interpreter(object):
+    def interpret(self, node, env):
+        if node.type == Type.NUM:
+            return self.interpret_num(node, env)
 
-    if isinstance(arg_tuple, Token):
-        arg_tuple = [arg_tuple]
+        elif node.type == Type.VAR:
+            return self.interpret_var(node, value)
 
-    return [arg.value for arg in arg_tuple]
+        elif node.type == Type.LAMBDA:
+            return self.interpret_lambda(node, env)
 
 
-def interpret(expr, env):
-    if not expr:
-        return 0
+    def interpret_num(self, node, env):
+        return node.value
 
-    if isinstance(expr, Token) or len(expr) == 1:
-        if len(expr) == 1:
-            expr = expr[0]
-        if expr.type == Type.NUM:
-            return expr.value
-        elif expr.type == Type.VAR:
-            bound = env.look_up(expr.value)
-            if bound is None:
-                raise UnBoundError
-            return bound
+    def interpret_var(self, node, env):
+        bound = env.look_up(node.value)
+        if bound is None:
+            raise UnBoundError
+        return bound
 
-    op = expr[0]
-    # call
-    if isinstance(op, list) or (isinstance(op, Token) and op.type == Type.VAR):
-        closure = interpret(expr[0], env)
-        arg_values = [interpret(arg, env) for arg in expr[1:]]
-        if isinstance(closure, Closure):
-            env_save = closure.env
-            expr_save = closure.expr
+    def interpret_call(self, node, env):
+        closure = self.interpret(node, env)
+        arg_values = [self.interpret(arg, env) for arg in node.children]
 
-            args = interpret_arg_tuple(closure.args)
-            scope = Scope.make_scope(args, arg_values)
+        env_save = closure.env
+        expr_save = closure.expr
 
-            with env_save.ext_env(scope) as new_env:
-                result = interpret(expr_save, new_env)
-            return result
+        args = self._interpret_arg_tuple(closure.args)
 
-    # expamle: (let (x v) (+ x 1))
-    if op.type == Type.LET:
-        bind_pair = expr[1]
-        val = interpret(bind_pair[1], env)
-        arg = bind_pair[0].value
-        scope = Scope.make_scope((arg,), (val,))
-        with env.ext_env(scope) as new_env:
-            result = interpret(expr[2], new_env)
-        return result
+        scope = Scope.make_scope(args, arg_values)
 
-    # example: (lambda (x) (+ x 1))
-    elif op.type == Type.LAMBDA:
-        return Closure(expr, env)
+        with env_save.ext_env(scope) as new_env:
+            return self.interpret(expr_save, new_nev)
 
-    elif op.type == Type.IF:
-        try:
-            cond_expr, then_expr, else_expr = expr[1:]
-        except ValueError:
-            raise SyntaxError
+    def _interpret_arg_tuple(self, node):
+        return [node.value] + [child.value for child in node.children]
+
+    def interpret_bind(self, node, env):
+        arg_value_pairs = self._interpret_bind_pair(node.children[0], env)
+        scope = Scope.make_scope(arg_value_pairs)
+        with env.ext_env(scope) as new_nev:
+            return interpret(node.children[1], new_nev)
+
+    def _interpret_bind_pair(self, node, env):
+        arg = node.value
+        val = self.interpret(node.children[0], env)
+        return (arg, val)
+
+    def interpret_lambda(self, node, env):
+        return Closure(node, env)
+
+    def interpret_if(self, node, env):
+        cond_node, then_node, else_node = node.children
+        if self.interpret(cond_node, env):
+            return self.interpret(then_node, env)
         else:
-            result = interpret(cond_expr, env)
-            if result:
-                return interpret(then_expr, env)
-            else:
-                return interpret(else_expr, env)
+            return self.interpret(else_node, env)
 
-    elif op.type in (Type.EQ, Type.NEQ, Type.LT, Type.LTE, Type.MT, Type.MTE):
-        try:
-            left_value, right_value = (interpret(exp, env) for exp in expr[1:])
-        except ValueError:
-            raise SyntaxError
-        else:
-            if op.type == Type.EQ:
-                return left_value == right_value
-            elif op.type == Type.NEQ:
-                return left_value != right_value
-            elif op.type == Type.LT:
-                return left_value < right_value
-            elif op.type == Type.LTE:
-                return left_value <= right_value
-            elif op.type == Type.MT:
-                return left_value > right_value
-            elif op.type == Type.MTE:
-                return left_value >= right_value
-            else:
-                raise SyntaxError
+    def interpret_condition(self, node, env):
+        left, value, right_value = (self.interpret(child, env) for child in node.children)
+        if node.type == Type.EQ:
+            return left_value == right_value
+        elif node.type == Type.NEQ:
+            return left_value != right_value
+        elif node.type == Type.LT:
+            return left_value < right_value
+        elif node.type == Type.LTE:
+            return left_value <= right_value
+        elif node.type == Type.MT:
+            return left_value > right_value
+        elif node.type == Type.MTE:
+            return left_value >= right_value
 
-    elif op.type in (Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE):
-
-        values = [interpret(exp, env) for exp in expr[1:]]
-
+    def interpret_arithmetic(self, node, env):
+        values = [self.interpret(child, env) for child in node.children]
         if len(values) >= 2:
-            if op.type == Type.PLUS:
+            if node.type == Type.PLUS:
                 return reduce(lambda x, y: x+y, values)
-            elif op.type == Type.TIMES:
+            elif node.type == Type.TIMES:
                 return reduce(lambda x, y: x*y, values, 1)
             elif len(values) == 2:
-                if op.type == Type.MINUS:
+                if node.type == Type.MINUS:
                     return values[0] - values[1]
                 else:
                     return values[0] / values[1]
@@ -170,14 +154,12 @@ def interpret(expr, env):
                 raise SyntaxError
 
         elif len(values) == 1:
-            if op.type == Type.MINUS:
+            if node.type == Type.MINUS:
                 return values[0] * (-1)
             else:
                 raise SyntaxError
 
-    else:
-        raise SyntaxError
-
 
 def interpret_one_sentence(text):
+    interpreter = Interpreter()
     return interpret(parse(text), Env())
