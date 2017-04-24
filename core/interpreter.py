@@ -45,8 +45,12 @@ class Scope(dict):
 
 
 class Closure(object):
-    def __init__(self, expr, env):
-        self.__expr = expr
+    def __init__(self, fn_ast, env):
+        if fn_ast.type == Type.LAMBDA:
+            self.__paras = fn_ast.left
+            self.__body = fn_ast.right
+        else:
+            pass
         self.__env = copy.deepcopy(env)
 
     @property
@@ -54,15 +58,15 @@ class Closure(object):
         return self.__env
 
     @property
-    def expr(self):
-        return self.__expr[2]
+    def body(self):
+        return self.__body
 
     @property
-    def args(self):
-        return self.__expr[1]
+    def paras(self):
+        return self.__paras
 
     def __repr__(self):
-        return '<expr:{0}, env:{1}>'.format(self.expr, str(self.__env))
+        return '<expr:{0}, env:{1}>'.format(self.self.__body, str(self.__env))
 
 
 class Interpreter(object):
@@ -70,12 +74,26 @@ class Interpreter(object):
         if env is None:
             env = Env()
         method_name = 'interpret_' + ast.type.lower()
-        method = getattr(self, method_name)
-        if method:
-            return method(ast, env)
+        try:
+            method = getattr(self, method_name)
+        except AttributeError:
+            if ast.type in (Type.PLUS,
+                            Type.MINUS,
+                            Type.TIMES,
+                            Type.DIVIDE):
+                return self.interpret_arithmetic(ast, env)
+            elif ast.type in (Type.EQ,
+                              Type.NEQ,
+                              Type.LT,
+                              Type.LTE,
+                              Type.MT,
+                              Type.MTE):
+                return self.interpret_condition(ast, env)
+            else:
+                raise SyntaxError
         else:
-            if ast.type in (Type.PLUS,):
-                pass
+            return method(ast, env)
+
 
 
     def interpret_num(self, ast, env):
@@ -89,19 +107,18 @@ class Interpreter(object):
 
     def interpret_call(self, ast, env):
         closure = self.interpret(ast.children[0], env)
-        arg_values = [self.interpret(arg, env) for arg in ast.children]
+        call_args = self.interpret(ast.children[1], env)
 
-        env_save = closure.env
-        expr_save = closure.expr
+        call_env = closure.env
+        call_body = closure.body
+        call_paras = self.interpret(closure.paras, env)
 
-        args = self._interpret_arg_tuple(closure.args)
+        scope = Scope.make_scope(tuple((para, arg) for para, arg in zip(call_paras, call_args)))
 
-        scope = Scope.make_scope(args, arg_values)
+        with call_env.ext_env(scope) as new_env:
+            return self.interpret(call_body, new_env)
 
-        with env_save.ext_env(scope) as new_env:
-            return self.interpret(expr_save, new_nev)
-
-    def inpterpret_arg_tuple(self, ast, env):
+    def interpret_arg_tuple(self, ast, env):
         return tuple(self.interpret(arg, env) for arg in ast.value)
 
     def interpret_para_tuple(self, ast, env):
@@ -119,7 +136,7 @@ class Interpreter(object):
 
 
     def interpret_lambda(self, ast, env):
-        return Closure(ast.children, env)
+        return Closure(ast, env)
 
     def interpret_if(self, ast, env):
         cond_ast, then_ast, else_ast = ast.children
@@ -129,7 +146,7 @@ class Interpreter(object):
             return self.interpret(else_ast, env)
 
     def interpret_condition(self, ast, env):
-        left, value, right_value = (self.interpret(child, env) for child in ast.children)
+        left_value, right_value = (self.interpret(child, env) for child in ast.children)
         if ast.type == Type.EQ:
             return left_value == right_value
         elif ast.type == Type.NEQ:
@@ -165,6 +182,11 @@ class Interpreter(object):
                 raise SyntaxError
 
 
+from ast import SExpAST
+
+
 def interpret_one_sentence(text):
     interpreter = Interpreter()
-    return interpret(parse(text), Env())
+    sexp = parse(text)
+    ast = SExpAST.from_sexp(sexp)
+    return interpreter.interpret(ast)

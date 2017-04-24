@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 import collections
 from parser import Type as TokenType
+from parser import Token
 
 
 class AST(object):
@@ -47,7 +48,7 @@ class AstNodeType(object):
 
 class AstNode(object):
     def __init__(self, node_type, node_value=None):
-        self.type = token_type
+        self.type = node_type
         self.value = node_value
 
 
@@ -71,9 +72,9 @@ class SExpAST(AST):
         # number or variable
         if isinstance(sexp, Token):
             if sexp.type == TokenType.NUM:
-                return cls(AstNode(AstNodeType.NUM), sexp.value)
+                return cls(AstNode(AstNodeType.NUM, sexp.value))
             elif sexp.type == TokenType.VAR:
-                return cls(AstNode(AstNodeType.VAR), sexp.value)
+                return cls(AstNode(AstNodeType.VAR, sexp.value))
 
         op = sexp[0]
 
@@ -125,7 +126,7 @@ class SExpAST(AST):
                          TokenType.LT,
                          TokenType.LTE,
                          TokenType.MT,
-                         TokenType.MTE
+                         TokenType.MTE,
                          TokenType.PLUS,
                          TokenType.MINUS,
                          TokenType.TIMES,
@@ -137,18 +138,21 @@ class SExpAST(AST):
         else:
             raise SyntaxError
 
+    @property
     def left(self):
         try:
             return self.__children[0]
         except IndexError:
             return ()
 
+    @property
     def right(self):
         try:
             return self.__children[1]
         except IndexError:
             return ()
 
+    @property
     def children(self):
         return self.__children
 
