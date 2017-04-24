@@ -4,7 +4,7 @@ from core.interpreter import interpret_one_sentence
 class BaseTest(unittest.TestCase):
 
     def test_num(self):
-        expr = '(1)'
+        expr = '1'
         result = interpret_one_sentence(expr)
         self.assertEqual(result, 1)
 
@@ -15,7 +15,7 @@ class BaseTest(unittest.TestCase):
         self.assertEqual(interpret_one_sentence('(* 1 2 3)'), 6)
 
     def test_bind(self):
-        expr = '(let (x 2) (x))'
+        expr = '(let ((x 2)) x)'
         self.assertEqual(interpret_one_sentence(expr), 2)
 
     def test_call(self):
@@ -26,7 +26,7 @@ class BaseTest(unittest.TestCase):
 
     def test_lambda_bind(self):
         expr = '''
-        (let (f (lambda x (* x 2)))
+        (let ((f (lambda (x) (* x 2))))
             (f 4)
         )
         '''
@@ -34,9 +34,9 @@ class BaseTest(unittest.TestCase):
 
     def test_closure(self):
         expr = '''
-        (let (x 2)
-            (let (f (lambda y (* x y)))
-                (let (x 4)
+        (let ((x 2))
+            (let ((f (lambda (y) (* x y))))
+                (let ((x 4))
                     (f 3))))
         '''
         self.assertEqual(interpret_one_sentence(expr), 6)
@@ -52,10 +52,10 @@ class BaseTest(unittest.TestCase):
     def test_recursive(self):
         expr = '''
         (let
-            (f (lambda (self n)
+            ((f (lambda (self n)
                     (if (= n 1) 1 (* n (self self (- n 1))))
                 )
-            )
+            ))
             (f f 5)
         )
         '''

@@ -4,7 +4,8 @@
 from contextlib import contextmanager
 import copy
 from errors import UnBoundError
-from parser import parse, Token, Type
+from parser import parse, Token
+from ast import AstNodeType as Type
 
 
 class Env(object):
@@ -36,16 +37,20 @@ class Env(object):
 
 class Scope(dict):
     @classmethod
-    def make_scope(cls, args, arg_values):
+    def make_scope(cls, arg_value_pairs):
         kwargs = {}
-        for arg, value in zip(args, arg_values):
+        for arg, value in arg_value_pairs:
             kwargs.update({arg: value})
         return cls(kwargs)
 
 
 class Closure(object):
-    def __init__(self, expr, env):
-        self.__expr = expr
+    def __init__(self, fn_ast, env):
+        if fn_ast.type == Type.LAMBDA:
+            self.__paras = fn_ast.left
+            self.__body = fn_ast.right
+        else:
+            pass
         self.__env = copy.deepcopy(env)
 
     @property
@@ -53,116 +58,117 @@ class Closure(object):
         return self.__env
 
     @property
-    def expr(self):
-        return self.__expr[2]
+    def body(self):
+        return self.__body
 
     @property
-    def args(self):
-        return self.__expr[1]
+    def paras(self):
+        return self.__paras
 
     def __repr__(self):
-        return '<expr:{0}, env:{1}>'.format(self.expr, str(self.__env))
+        return '<expr:{0}, env:{1}>'.format(self.self.__body, str(self.__env))
 
 
-def interpret_arg_tuple(arg_tuple):
-    if not arg_tuple:
-        return None
-
-    if isinstance(arg_tuple, Token):
-        arg_tuple = [arg_tuple]
-
-    return [arg.value for arg in arg_tuple]
-
-
-def interpret(expr, env):
-    if not expr:
-        return 0
-
-    if isinstance(expr, Token) or len(expr) == 1:
-        if len(expr) == 1:
-            expr = expr[0]
-        if expr.type == Type.NUM:
-            return expr.value
-        elif expr.type == Type.VAR:
-            bound = env.look_up(expr.value)
-            if bound is None:
-                raise UnBoundError
-            return bound
-
-    op = expr[0]
-    # call
-    if isinstance(op, list) or (isinstance(op, Token) and op.type == Type.VAR):
-        closure = interpret(expr[0], env)
-        arg_values = [interpret(arg, env) for arg in expr[1:]]
-        if isinstance(closure, Closure):
-            env_save = closure.env
-            expr_save = closure.expr
-
-            args = interpret_arg_tuple(closure.args)
-            scope = Scope.make_scope(args, arg_values)
-
-            with env_save.ext_env(scope) as new_env:
-                result = interpret(expr_save, new_env)
-            return result
-
-    # expamle: (let (x v) (+ x 1))
-    if op.type == Type.LET:
-        bind_pair = expr[1]
-        val = interpret(bind_pair[1], env)
-        arg = bind_pair[0].value
-        scope = Scope.make_scope((arg,), (val,))
-        with env.ext_env(scope) as new_env:
-            result = interpret(expr[2], new_env)
-        return result
-
-    # example: (lambda (x) (+ x 1))
-    elif op.type == Type.LAMBDA:
-        return Closure(expr, env)
-
-    elif op.type == Type.IF:
+class Interpreter(object):
+    def interpret(self, ast, env=None):
+        if env is None:
+            env = Env()
+        method_name = 'interpret_' + ast.type.lower()
         try:
-            cond_expr, then_expr, else_expr = expr[1:]
-        except ValueError:
-            raise SyntaxError
-        else:
-            result = interpret(cond_expr, env)
-            if result:
-                return interpret(then_expr, env)
-            else:
-                return interpret(else_expr, env)
-
-    elif op.type in (Type.EQ, Type.NEQ, Type.LT, Type.LTE, Type.MT, Type.MTE):
-        try:
-            left_value, right_value = (interpret(exp, env) for exp in expr[1:])
-        except ValueError:
-            raise SyntaxError
-        else:
-            if op.type == Type.EQ:
-                return left_value == right_value
-            elif op.type == Type.NEQ:
-                return left_value != right_value
-            elif op.type == Type.LT:
-                return left_value < right_value
-            elif op.type == Type.LTE:
-                return left_value <= right_value
-            elif op.type == Type.MT:
-                return left_value > right_value
-            elif op.type == Type.MTE:
-                return left_value >= right_value
+            method = getattr(self, method_name)
+        except AttributeError:
+            if ast.type in (Type.PLUS,
+                            Type.MINUS,
+                            Type.TIMES,
+                            Type.DIVIDE):
+                return self.interpret_arithmetic(ast, env)
+            elif ast.type in (Type.EQ,
+                              Type.NEQ,
+                              Type.LT,
+                              Type.LTE,
+                              Type.MT,
+                              Type.MTE):
+                return self.interpret_condition(ast, env)
             else:
                 raise SyntaxError
+        else:
+            return method(ast, env)
 
-    elif op.type in (Type.PLUS, Type.MINUS, Type.TIMES, Type.DIVIDE):
 
-        values = [interpret(exp, env) for exp in expr[1:]]
 
+    def interpret_num(self, ast, env):
+        return ast.value
+
+    def interpret_var(self, ast, env):
+        bound = env.look_up(ast.value)
+        if bound is None:
+            raise UnBoundError
+        return bound
+
+    def interpret_call(self, ast, env):
+        closure = self.interpret(ast.children[0], env)
+        call_args = self.interpret(ast.children[1], env)
+
+        call_env = closure.env
+        call_body = closure.body
+        call_paras = self.interpret(closure.paras, env)
+
+        scope = Scope.make_scope(tuple((para, arg) for para, arg in zip(call_paras, call_args)))
+
+        with call_env.ext_env(scope) as new_env:
+            return self.interpret(call_body, new_env)
+
+    def interpret_arg_tuple(self, ast, env):
+        return tuple(self.interpret(arg, env) for arg in ast.value)
+
+    def interpret_para_tuple(self, ast, env):
+        return ast.value
+
+    def interpret_bind_pair_tuple(self, ast, env):
+        return tuple((pair[0], self.interpret(pair[1], env)) for pair in ast.value)
+
+
+    def interpret_let(self, ast, env):
+        arg_value_pairs = self.interpret(ast.children[0], env)
+        scope = Scope.make_scope(arg_value_pairs)
+        with env.ext_env(scope) as new_nev:
+            return self.interpret(ast.children[1], new_nev)
+
+
+    def interpret_lambda(self, ast, env):
+        return Closure(ast, env)
+
+    def interpret_if(self, ast, env):
+        cond_ast, then_ast, else_ast = ast.children
+        if self.interpret(cond_ast, env):
+            return self.interpret(then_ast, env)
+        else:
+            return self.interpret(else_ast, env)
+
+    def interpret_condition(self, ast, env):
+        left_value, right_value = (self.interpret(child, env) for child in ast.children)
+        if ast.type == Type.EQ:
+            return left_value == right_value
+        elif ast.type == Type.NEQ:
+            return left_value != right_value
+        elif ast.type == Type.LT:
+            return left_value < right_value
+        elif ast.type == Type.LTE:
+            return left_value <= right_value
+        elif ast.type == Type.MT:
+            return left_value > right_value
+        elif ast.type == Type.MTE:
+            return left_value >= right_value
+
+    def interpret_arithmetic(self, ast, env):
+        values = [self.interpret(child, env) for child in ast.children]
         if len(values) >= 2:
-            if op.type == Type.PLUS:
+            if ast.type == Type.PLUS:
                 return reduce(lambda x, y: x+y, values)
-            elif op.type == Type.TIMES:
+            elif ast.type == Type.TIMES:
                 return reduce(lambda x, y: x*y, values, 1)
             elif len(values) == 2:
-                if op.type == Type.MINUS:
+                if ast.type == Type.MINUS:
                     return values[0] - values[1]
                 else:
                     return values[0] / values[1]
@@ -170,14 +176,17 @@ def interpret(expr, env):
                 raise SyntaxError
 
         elif len(values) == 1:
-            if op.type == Type.MINUS:
+            if ast.type == Type.MINUS:
                 return values[0] * (-1)
             else:
                 raise SyntaxError
 
-    else:
-        raise SyntaxError
+
+from ast import SExpAST
 
 
 def interpret_one_sentence(text):
-    return interpret(parse(text), Env())
+    interpreter = Interpreter()
+    sexp = parse(text)
+    ast = SExpAST.from_sexp(sexp)
+    return interpreter.interpret(ast)
